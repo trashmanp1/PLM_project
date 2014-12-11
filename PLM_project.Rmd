@@ -1,0 +1,79 @@
+---
+title: "PLM_project"
+author: "Pedro Rebelo"
+date: "8 Dec 2014"
+output: pdf_document
+---
+#Introduction
+This work is a course project of a coursera *Practical Machine Learning by Jeff Leek, PhD, Roger D. Peng, PhD, Brian Caffo, PhD*.
+The aim of this work is to demonstrate that is easy to classify the physical activity   through the use of data colected by embedded devices on clothing (Wearable data).
+This Human Activity Recognition - *HAR* - is possible because collecting data increased greatly in recent years, thanks to proliferation of electronic devices that colect data. Furthermore the incrise in computational power and sophisticated algorithms allow the use of these data in creative ways such as algorithms that can learn from data (*Machine learning*).
+I use the  colected data (* http://groupware.les.inf.puc-rio.br/har ; Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements*) to create a statistical model that classifies physical activity.
+
+#Get and prepare the data 
+The folowing code is clear by itself:
+```{r}
+library(caret)
+library(ggplot2)
+########## Get the data, clean it and prepare to use #################
+dat_training <- read.csv("/Users/pedrorebelo/Desktop/pml-training.csv",
+                         na.strings = c('NA','#DIV/0!',''))
+dat_testing <- read.csv("/Users/pedrorebelo/Desktop/pml-testing.csv",
+                        na.strings = c('NA','#DIV/0!',''))
+
+pre_util_features <- colnames(dat_training[colSums(is.na(dat_training)) == 0])
+#removes coluns with lot of NA
+#ncol(pre_util_features)=60, last col. is class (or problem_id in dat_testing) 
+util_features<-pre_util_features[8:60]#the first 7 are not Wearable data
+
+set.seed(999)#for reproducibility
+index_training <- createDataPartition(y=dat_training$user_name, p=0.80)
+data_training <- dat_training[index_training$Resample1, util_features]
+data_validate <- dat_training[-index_training$Resample1, util_features]
+data_testing <- dat_testing[1:20,util_features[-53]]#20 problems, col 53 is problem_id
+```
+
+After a quick *EDA*(names of variables, summary of variables -with lots of NAs-) i eliminated the columns containing NA elements and the first 7 columns (because they are not part of werable data) and could make a bias in the model. Then i split the original data in training data (80%) and validate data (20%). The testing data is for quiz answer.
+We can see in the folowing graph, that the distribution of data_training is similar to the subset data_validation for the variable class.
+
+```{r, echo=FALSE}
+par(mfrow=c(1,2))
+plot(data_training$classe, xlab="data_training")
+plot(data_validate$classe,xlab="data_validate")
+```
+
+#The model
+I chose random forest as method, because its one of the best Machine Learning Algoritms.
+I want to see the iterations count so i put verboseIter = TRUE, but for generate this document i put it =FALSE.
+After train the model, i validade the model using model_rf to predict the class of validate data subset.
+
+```{r}
+
+############# Create and train a model ####################
+model_rf <- train(classe ~ ., data = data_training, method = 'rf', trControl = trainControl(method = "cv", allowParallel = TRUE,verboseIter = FALSE))
+
+############# Validate the model ####################
+pred_rf_validate <- predict(model_rf,data_validate)
+cm_rf_validate <- confusionMatrix(pred_rf_validate,data_validate$classe)
+cm_rf_validate
+```
+
+ Looking at the confusion matrix we find that there are few cases of misclassification.
+ As we can see the model have an overall accuracy of 99.5% over the validate data. 
+ The following graph show the confusion matrix in a visual way.
+
+```{r, echo=FALSE}
+############ Observing the model #####################
+confusion<-as.data.frame(cm_rf_validate$table)
+plot <- ggplot(confusion)
+plot + geom_tile(aes(x=confusion$Reference, y=confusion$Prediction, fill=Freq))+ scale_x_discrete(name="Actual Class") + scale_y_discrete(name="Predicted Class") + scale_fill_gradientn(colours=c("white","gray","black","red","darkorange1") )
+
+```
+ 
+We can now test the model for the quiz, with the testing data.
+ 
+```{r}
+############# Answer the quiz  ####################
+pred_rf_quiz <- predict(model_rf,data_testing)
+pred_rf_quiz
+```
